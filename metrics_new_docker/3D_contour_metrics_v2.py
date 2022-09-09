@@ -40,6 +40,7 @@ def findContoursfromJSONVertices(contours_file3D):
     for i in range(0, contourNums):
         # print(i)
         contourEach = data['contour'][i]
+        print(contourEach.keys())
         ctypeD  = contourEach["contourType"]
         ctypeD_names.append(ctypeD)
         vertices_.append(contourEach['modelPoints']["vertices"])
@@ -74,7 +75,8 @@ if __name__ == "__main__":
     #evaluation vertices
     contours_eval = os.path.join(args.ridgeLigamentLandmarks_3D_eval)
     contourNums_eval, vertices_eval_contour, ctypeD_names_eval = findContoursfromJSONVertices(contours_eval)
-    
+    print(ctypeD_names_eval)
+    print(ctypeD_names)
     pcd = o3d.geometry.PointCloud()
     # pcd.points = o3d.utility.Vector3dVector(point_cloud[:,:3])
     
@@ -93,81 +95,51 @@ if __name__ == "__main__":
             print('variable predictions found with evaluation less than GT')
         
         ''' Note only first few predictions will be taken into account (Ridge -> L to R) - if you predict more then this will be discarded'''
-        for idx in range(0, len(ctypeD_names)):
-            if (ctypeD_names[idx] == ctypeD_names_eval[idx] and ctypeD_names_eval[idx]=='Ridge'):
-                vertex3D_GT = vertices_GT_contour[idx]
-                vertex3D_eval = vertices_eval_contour[idx]
-                dist = []
-               
-                cords3D_gt = []
-                for k in range(0, len(vertex3D_GT)):
-                    cords3D_gt.append(vertices_GT[vertex3D_GT[k]])
+
+        for type in ["Ridge", "Ligament" ]:
+            vertex3D_GT = []
+            vertex3D_eval = []
+
+            for idx in range(0, len(ctypeD_names)):
+                if ctypeD_names[idx]==type:
+                    vertex3D_GT.extend(vertices_GT_contour[idx])
+
+            for idx in range(0, len(ctypeD_names_eval)):
+                if ctypeD_names_eval[idx]==type:
+                    vertex3D_eval.extend(vertices_eval_contour[idx])
+        
+
+            dist = []
+            
+            cords3D_gt = []
+            for k in range(0, len(vertex3D_GT)):
+                cords3D_gt.append(vertices_GT[vertex3D_GT[k]])
+            
+            # find distance from nearest neighbor in GT
+            pcd.points = o3d.utility.Vector3dVector(cords3D_gt)
+            distances_GT = pcd.compute_nearest_neighbor_distance()
+            avg_dist_GT = np.mean(distances_GT)
+            # print(avg_dist_GT)
+            # o3d.visualization.draw_geometries([pcd])
                 
-                # find distance from nearest neighbor in GT
-                pcd.points = o3d.utility.Vector3dVector(cords3D_gt)
-                distances_GT = pcd.compute_nearest_neighbor_distance()
-                avg_dist_GT = np.mean(distances_GT)
-                # print(avg_dist_GT)
-                # o3d.visualization.draw_geometries([pcd])
-                    
-                cords3D_eval = []
-                for k in range(0, len(vertex3D_eval)):
-                    cords3D_eval.append(vertices_GT[vertex3D_eval[k]])  
-                
-                # find distance from nearest neighbor in predicted
-                pcd = o3d.geometry.PointCloud()   
-                pcd.points = o3d.utility.Vector3dVector(cords3D_eval)
-                # o3d.visualization.draw_geometries([pcd])
-                distances_eval = pcd.compute_nearest_neighbor_distance()
-                avg_dist_eval = np.mean(distances_eval)
-                # print(avg_dist_eval)
-                
-                # Note: the distance difference will penalise the score : min -> best (ideally 0)
-                distNN_diff = np.asarray(avg_dist_eval)-np.asarray(avg_dist_GT)
-                dist_NN.append(distNN_diff)
-                print(distNN_diff)
-                valHFD = Hausdorff_dist(cords3D_gt, cords3D_eval)
-                dist_HFD.append(valHFD)
-            elif (ctypeD_names[idx] == 'Ligament'):
-                # print(ctypeD_names[idx])
-                try:
-                    idx2 = ctypeD_names_eval.index('Ligament')
-                    vertex3D_GT = vertices_GT_contour[idx]
-                    vertex3D_eval = vertices_eval_contour[idx2]
-                    dist = []
-                   
-                    cords3D_gt = []
-                    for k in range(0, len(vertex3D_GT)):
-                        cords3D_gt.append(vertices_GT[vertex3D_GT[k]])
-                    
-                    # find distance from nearest neighbor in GT
-                    pcd.points = o3d.utility.Vector3dVector(cords3D_gt)
-                    distances_GT = pcd.compute_nearest_neighbor_distance()
-                    avg_dist_GT = np.mean(distances_GT)
-                    # print(avg_dist_GT)
-                    # o3d.visualization.draw_geometries([pcd])
-                        
-                    cords3D_eval = []
-                    for k in range(0, len(vertex3D_eval)):
-                        cords3D_eval.append(vertices_GT[vertex3D_eval[k]])  
-                    
-                    # find distance from nearest neighbor in predicted
-                    pcd = o3d.geometry.PointCloud()   
-                    pcd.points = o3d.utility.Vector3dVector(cords3D_eval)
-                    # o3d.visualization.draw_geometries([pcd])
-                    distances_eval = pcd.compute_nearest_neighbor_distance()
-                    avg_dist_eval = np.mean(distances_eval)
-                    # print(avg_dist_eval)
-                    
-                    # Note: the distance difference will penalise the score : min -> best (ideally 0)
-                    distNN_diff = np.asarray(avg_dist_eval)-np.asarray(avg_dist_GT)
-                    dist_NN.append(distNN_diff)
-                    print(distNN_diff)
-                    valHFD = Hausdorff_dist(cords3D_gt, cords3D_eval)
-                    dist_HFD.append(valHFD)
-                    
-                except:
-                    print("Ligament not predicted found")
+            cords3D_eval = []
+            for k in range(0, len(vertex3D_eval)):
+                cords3D_eval.append(vertices_GT[vertex3D_eval[k]])  
+            
+            # find distance from nearest neighbor in predicted
+            pcd = o3d.geometry.PointCloud()   
+            pcd.points = o3d.utility.Vector3dVector(cords3D_eval)
+            # o3d.visualization.draw_geometries([pcd])
+            distances_eval = pcd.compute_nearest_neighbor_distance()
+            avg_dist_eval = np.mean(distances_eval)
+            # print(avg_dist_eval)
+            
+            # Note: the distance difference will penalise the score : min -> best (ideally 0)
+            distNN_diff = np.asarray(avg_dist_eval)-np.asarray(avg_dist_GT)
+            dist_NN.append(distNN_diff)
+            print(distNN_diff)
+            valHFD = Hausdorff_dist(cords3D_gt, cords3D_eval)
+            dist_HFD.append(valHFD)
         
     my_dictionary = {"P2ILF_3D_contours":{"Distances":{"distNN_diff": np.mean(dist_NN).astype('float'), "distHF": np.mean(dist_HFD).astype('float')}
                 },
